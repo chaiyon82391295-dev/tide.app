@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TideGuard - ตรวจสอบระดับน้ำทะเล</title>
+    <!-- Chart.js สำหรับวาดกราฟระดับน้ำ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --border-color: #2d2d2d;
+            --danger-color: #ef4444;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        h1 {
+            font-size: 1.25rem;
+            color: var(--accent-color);
+        }
+        select, button {
+            background-color: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .status-box {
+            text-align: center;
+            padding: 20px 0;
+        }
+        .tide-level {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .chart-container {
+            position: relative;
+            height: 220px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .settings-grid {
+            display: grid;
+            gap: 12px;
+        }
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        label {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+        }
+        input[type="time"] {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 6px 10px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 id="ui-title">TideGuard</h1>
+        <select id="langSelect" onchange="changeLanguage()">
+            <option value="th">ไทย</option>
+            <option value="en">English</option>
+            <option value="my">မြန်မာ</option>
+            <option value="km">ខ្មែរ</option>
+        </select>
+    </header>
+
+    <!-- สถานะระดับน้ำปัจจุบัน -->
+    <div class="card status-box">
+        <div id="locationLabel" style="color: var(--text-secondary);">ป้อมพระจุลจอมเกล้า (Phra Chulachomklao Fort)</div>
+        <div class="tide-level" id="currentTide">-- ม.</div>
+        <div id="tideStatus" style="color: var(--accent-color);">กำลังโหลดข้อมูล...</div>
+    </div>
+
+    <!-- กราฟระดับน้ำ -->
+    <div class="card">
+        <h3 id="chartTitle" style="font-size: 1rem; margin-bottom: 10px;">กราฟระดับน้ำรายชั่วโมง</h3>
+        <div class="chart-container">
+            <canvas id="tideChart"></canvas>
+        </div>
+    </div>
+
+    <!-- ตั้งค่าการแจ้งเตือนและเวลา -->
+    <div class="card">
+        <h3 id="settingTitle" style="font-size: 1rem; margin-bottom: 12px;">ตั้งค่ารอบการแจ้งเตือน</h3>
+        <div class="settings-grid">
+            <div class="setting-item">
+                <label id="morningLabel">รอบเช้า:</label>
+                <input type="time" id="morningTime" value="06:00">
+            </div>
+            <div class="setting-item">
+                <label id="eveningLabel">รอบเย็น:</label>
+                <input type="time" id="eveningTime" value="18:00">
+            </div>
+            <button onclick="testAlarm()" id="testAlarmBtn" style="width: 100%; margin-top: 8px;">ทดสอบเสียงปลุก (4 วินาที)</button>
+        </div>
+    </div>
+
+    <script>
+        // ระบบแปลภาษาพื้นฐาน
+        const translations = {
+            th: { title: "TideGuard - น้ำทะเลหนุน", chart: "กราฟระดับน้ำรายชั่วโมง", setting: "ตั้งค่ารอบการแจ้งเตือน", morning: "รอบเช้า:", evening: "รอบเย็น:", test: "ทดสอบเสียงปลุก (4 วินาที)", loading: "กำลังโหลดข้อมูล...", normal: "ระดับปกติ / เฝ้าระวัง" },
+            en: { title: "TideGuard - Tide Monitor", chart: "Hourly Tide Chart", setting: "Alert Schedule", morning: "Morning:", evening: "Evening:", test: "Test Alarm (4s)", loading: "Loading data...", normal: "Normal / Monitoring" },
+            my: { title: "TideGuard - ဒီရေစောင့်ကြည့်ရန်", chart: "နာရီအလိုက် ဒီရေဇယား", setting: "သတိပေးချက်အချိန်ဇယား", morning: "မနက်ပိုင်း:", evening: "ညနေပိုင်း:", test: "နှိုးစက်စမ်းသပ်ရန်", loading: "ဒေတာကို ရယူနေသည်...", normal: "ပုံမှန်အဆင့်" },
+            km: { title: "TideGuard - ពិនិត្យកម្រិតទឹកសមុទ្រ", chart: "ក្រាហ្វកម្រិតទឹកតាមម៉ោង", setting: "កំណត់ម៉ោងជូនដំណឹង", morning: "ពេលព្រឹក:", evening: "ពេលល្ងាច:", test: "សាកល្បងសំឡេងរោទ៍", loading: "កំពុងទាញយកទិន្នន័យ...", normal: "កម្រិតធម្មតា" }
+        };
+
+        function changeLanguage() {
+            const lang = document.getElementById('langSelect').value;
+            const t = translations[lang];
+            document.getElementById('ui-title').innerText = t.title;
+            document.getElementById('chartTitle').innerText = t.chart;
+            document.getElementById('settingTitle').innerText = t.setting;
+            document.getElementById('morningLabel').innerText = t.morning;
+            document.getElementById('eveningLabel').innerText = t.evening;
+            document.getElementById('testAlarmBtn').innerText = t.test;
+        }
+
+        // สร้างกราฟจำลองด้วย Chart.js
+        const ctx = document.getElementById('tideChart').getContext('2d');
+        const tideChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00'],
+                datasets: [{
+                    label: 'ระดับน้ำ (เมตร)',
+                    data: [1.2, 0.8, 2.1, 2.5, 1.5, 1.1],
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { ticks: { color: '#a0a0a0' }, grid: { color: '#2d2d2d' } },
+                    y: { ticks: { color: '#a0a0a0' }, grid: { color: '#2d2d2d' } }
+                }
+            }
+        });
+
+        // จำลองการดึงข้อมูลและแสดงผล
+        setTimeout(() => {
+            document.getElementById('currentTide').innerText = '2.35 ม.';
+            document.getElementById('tideStatus').innerText = translations['th'].normal;
+        }, 1000);
+
+        // ฟังก์ชันเสียงปลุกต่อเนื่อง 4 วินาที (ใช้ Web Audio API)
+        function testAlarm() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const duration = 4.0; // 4 วินาที
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // ความถี่เสียง
+
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            oscillator.start();
+            oscillator.stop(audioCtx.currentTime + duration);
+        }
+    </script>
+</body>
+</html>
