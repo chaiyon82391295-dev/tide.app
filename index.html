@@ -4361,5 +4361,21 @@ class TideGuardService : Service() {
             });
         });
     </script>
+    <script>
+  // บังคับขอสิทธิ์ GPS และการแจ้งเตือนเมื่อผู้ใช้แตะหน้าจอ
+  function requestAppPermissions() {
+    if ('Notification' in window && Notification.permission !== 'granted') {
+      Notification.requestPermission();
+    }
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { console.log('GPS Ready'); },
+        (err) => { alert('กรุณาเปิดสิทธิ์ GPS ในตั้งค่ามือถือ'); },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+  }
+  document.addEventListener('click', requestAppPermissions, { once: true });
+</script>
 </body>
 </html>
