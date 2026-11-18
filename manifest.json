@@ -1,6 +1,7 @@
+
 {
-  "name": "น้ำทะเล ขึ้น ลง",
-  "short_name": "น้ำทะเลขึ้นลง",
+  "name": "Nam Thale",
+  "short_name": "TideMonitor",
   "start_url": "/tide.app/",
   "scope": "/tide.app/",
   "display": "standalone",
